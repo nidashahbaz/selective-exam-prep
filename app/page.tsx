@@ -11,6 +11,7 @@ type View = "home" | "quiz" | "dashboard";
 export default function Home() {
   const [view, setView] = useState<View>("home");
   const [quizCategory, setQuizCategory] = useState<Category | "mixed">("mixed");
+  const [targetSubcategory, setTargetSubcategory] = useState<string | undefined>(undefined);
   const [totalAnswered, setTotalAnswered] = useState(0);
   const [overallPct, setOverallPct] = useState<number | null>(null);
   const [sessionCount, setSessionCount] = useState(0);
@@ -25,8 +26,9 @@ export default function Home() {
     setCatStats(getCategoryStats(results));
   }, [view]);
 
-  function startQuiz(cat: Category | "mixed") {
+  function startQuiz(cat: Category | "mixed", subcategory?: string) {
     setQuizCategory(cat);
+    setTargetSubcategory(subcategory);
     setView("quiz");
   }
 
@@ -34,6 +36,7 @@ export default function Home() {
     return (
       <Quiz
         category={quizCategory}
+        targetSubcategory={targetSubcategory}
         onDone={() => setView("dashboard")}
         onExit={() => setView("home")}
       />
@@ -41,24 +44,17 @@ export default function Home() {
   }
 
   if (view === "dashboard") {
-    return <Dashboard onBack={() => setView("home")} />;
+    return <Dashboard onBack={() => setView("home")} onTargetedPractice={startQuiz} />;
   }
 
-  const categories: (Category | "mixed")[] = ["mixed", "numerical", "verbal", "mathematics", "reading"];
-  const categoryColors: Record<string, string> = {
-    mixed: "bg-indigo-600 hover:bg-indigo-700",
-    numerical: "bg-blue-600 hover:bg-blue-700",
-    verbal: "bg-purple-600 hover:bg-purple-700",
-    mathematics: "bg-green-600 hover:bg-green-700",
-    reading: "bg-orange-600 hover:bg-orange-700",
-  };
-  const categoryIcons: Record<string, string> = {
-    mixed: "🎯",
-    numerical: "🔢",
-    verbal: "💬",
-    mathematics: "📐",
-    reading: "📖",
-  };
+  const categories: { key: Category | "mixed"; color: string; icon: string }[] = [
+    { key: "mixed", color: "bg-indigo-600 hover:bg-indigo-700", icon: "🎯" },
+    { key: "numerical", color: "bg-blue-600 hover:bg-blue-700", icon: "🔢" },
+    { key: "verbal", color: "bg-purple-600 hover:bg-purple-700", icon: "💬" },
+    { key: "mathematics", color: "bg-green-600 hover:bg-green-700", icon: "📐" },
+    { key: "reading", color: "bg-orange-600 hover:bg-orange-700", icon: "📖" },
+    { key: "vocabulary", color: "bg-rose-600 hover:bg-rose-700", icon: "📚" },
+  ];
 
   return (
     <main className="min-h-screen" style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
@@ -87,16 +83,16 @@ export default function Home() {
         )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-          {categories.map((cat) => {
-            const s = catStats.find((x) => x.category === cat);
+          {categories.map(({ key, color, icon }) => {
+            const s = catStats.find((x) => x.category === key);
             return (
               <button
-                key={cat}
-                onClick={() => startQuiz(cat)}
-                className={`${categoryColors[cat]} text-white rounded-2xl p-6 text-left transition-all transform hover:scale-[1.02] shadow-lg cursor-pointer`}
+                key={key}
+                onClick={() => startQuiz(key)}
+                className={`${color} text-white rounded-2xl p-6 text-left transition-all transform hover:scale-[1.02] shadow-lg cursor-pointer`}
               >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="text-3xl">{categoryIcons[cat]}</span>
+                  <span className="text-3xl">{icon}</span>
                   {s && (
                     <span className="bg-white/20 rounded-full px-3 py-1 text-sm font-semibold">
                       {s.percentage}%
@@ -104,10 +100,10 @@ export default function Home() {
                   )}
                 </div>
                 <div className="font-bold text-xl">
-                  {cat === "mixed" ? "Mixed Practice" : CATEGORY_LABELS[cat as Category]}
+                  {key === "mixed" ? "Mixed Practice" : CATEGORY_LABELS[key as Category]}
                 </div>
                 <div className="text-white/70 text-sm mt-1">
-                  {cat === "mixed" ? "Questions from all sections" : "Focused practice"}
+                  {key === "mixed" ? "Questions from all sections" : key === "vocabulary" ? "Barron's 1100 words" : "Focused practice"}
                   {s && ` · ${s.total} attempted`}
                 </div>
               </button>

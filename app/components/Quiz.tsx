@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useCallback } from "react";
 import { questions, CATEGORY_LABELS, type Category, type Question } from "@/app/data/questions";
 import { saveResult, saveSession } from "@/app/lib/progress";
 
 interface Props {
   category: Category | "mixed";
+  targetSubcategory?: string;
   onDone: () => void;
   onExit: () => void;
 }
@@ -21,12 +22,26 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export default function Quiz({ category, onDone, onExit }: Props) {
+export default function Quiz({ category, targetSubcategory, onDone, onExit }: Props) {
   const [pool] = useState<Question[]>(() => {
-    const filtered =
+    let filtered =
       category === "mixed"
         ? questions
         : questions.filter((q) => q.category === category);
+
+    if (targetSubcategory) {
+      filtered = filtered.filter((q) => q.subcategory === targetSubcategory);
+      // if fewer than 5 exact matches, add more from same category
+      if (filtered.length < 5) {
+        const extra = questions.filter(
+          (q) =>
+            (category === "mixed" || q.category === category) &&
+            q.subcategory !== targetSubcategory
+        );
+        filtered = [...filtered, ...shuffle(extra).slice(0, QUESTIONS_PER_SESSION - filtered.length)];
+      }
+    }
+
     return shuffle(filtered).slice(0, QUESTIONS_PER_SESSION);
   });
 
@@ -98,7 +113,6 @@ export default function Quiz({ category, onDone, onExit }: Props) {
           <div className="text-gray-500 mb-8">
             {correct} / {pool.length} correct
           </div>
-
           <div className="grid grid-cols-2 gap-3">
             <button
               onClick={onDone}
@@ -119,9 +133,10 @@ export default function Quiz({ category, onDone, onExit }: Props) {
   }
 
   const catLabel = category === "mixed" ? "Mixed Practice" : CATEGORY_LABELS[category as Category];
+  const sessionLabel = targetSubcategory ? `Targeted: ${targetSubcategory}` : catLabel;
   const progress = ((current + (revealed ? 1 : 0)) / pool.length) * 100;
 
-  const optionColors = (idx: number) => {
+  const optionStyle = (idx: number) => {
     if (!revealed) {
       return selected === idx
         ? "border-indigo-500 bg-indigo-50"
@@ -135,30 +150,31 @@ export default function Quiz({ category, onDone, onExit }: Props) {
   return (
     <div className="min-h-screen p-4" style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
       <div className="max-w-2xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-6">
-          <button
-            onClick={onExit}
-            className="text-white/70 hover:text-white text-sm transition-colors cursor-pointer"
-          >
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={onExit} className="text-white/70 hover:text-white text-sm transition-colors cursor-pointer">
             ← Exit
           </button>
-          <div className="text-white font-medium">{catLabel}</div>
-          <div className="text-white/70 text-sm">
-            {current + 1} / {pool.length}
-          </div>
+          <div className="text-white font-medium text-sm text-center">{sessionLabel}</div>
+          <div className="text-white/70 text-sm">{current + 1} / {pool.length}</div>
         </div>
 
-        {/* Progress bar */}
-        <div className="w-full bg-white/20 rounded-full h-2 mb-8">
+        <div className="w-full bg-white/20 rounded-full h-2 mb-6">
           <div
             className="bg-white rounded-full h-2 transition-all duration-300"
             style={{ width: `${progress}%` }}
           />
         </div>
 
+        {/* Passage for reading comprehension */}
+        {q.passage && (
+          <div className="bg-white/95 rounded-2xl p-6 mb-4 shadow-lg max-h-64 overflow-y-auto">
+            <div className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-3">Read the passage</div>
+            <p className="text-gray-700 text-sm leading-relaxed whitespace-pre-line">{q.passage}</p>
+          </div>
+        )}
+
         {/* Question card */}
-        <div className="bg-white rounded-3xl p-8 shadow-2xl">
+        <div className="bg-white rounded-3xl p-6 shadow-2xl">
           <div className="flex items-center gap-2 mb-4">
             <span className="text-xs bg-indigo-100 text-indigo-700 rounded-full px-3 py-1 font-medium">
               {q.subcategory}
@@ -176,7 +192,7 @@ export default function Quiz({ category, onDone, onExit }: Props) {
             </span>
           </div>
 
-          <p className="text-gray-800 text-lg font-medium mb-6 whitespace-pre-line leading-relaxed">
+          <p className="text-gray-800 text-base font-medium mb-5 whitespace-pre-line leading-relaxed">
             {q.question}
           </p>
 
@@ -186,27 +202,21 @@ export default function Quiz({ category, onDone, onExit }: Props) {
                 key={idx}
                 onClick={() => handleSelect(idx)}
                 disabled={revealed}
-                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${optionColors(idx)} ${
+                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${optionStyle(idx)} ${
                   !revealed ? "cursor-pointer" : "cursor-default"
                 }`}
               >
-                <span className="font-semibold text-gray-500 mr-3">
-                  {String.fromCharCode(65 + idx)}.
-                </span>
+                <span className="font-semibold text-gray-500 mr-3">{String.fromCharCode(65 + idx)}.</span>
                 <span className="text-gray-800">{opt}</span>
-                {revealed && idx === q.answer && (
-                  <span className="ml-2 text-green-600">✓</span>
-                )}
-                {revealed && idx === selected && idx !== q.answer && (
-                  <span className="ml-2 text-red-600">✗</span>
-                )}
+                {revealed && idx === q.answer && <span className="ml-2 text-green-600">✓</span>}
+                {revealed && idx === selected && idx !== q.answer && <span className="ml-2 text-red-600">✗</span>}
               </button>
             ))}
           </div>
 
           {revealed && (
-            <div className="mt-6 p-4 bg-blue-50 rounded-xl border border-blue-200">
-              <div className="font-semibold text-blue-800 mb-1">Explanation</div>
+            <div className="mt-5 p-4 bg-blue-50 rounded-xl border border-blue-200">
+              <div className="font-semibold text-blue-800 mb-1 text-sm">Explanation</div>
               <p className="text-blue-700 text-sm leading-relaxed">{q.explanation}</p>
             </div>
           )}
@@ -214,7 +224,7 @@ export default function Quiz({ category, onDone, onExit }: Props) {
           {revealed && (
             <button
               onClick={next}
-              className="mt-6 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-semibold text-lg transition-colors cursor-pointer"
+              className="mt-5 w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-xl font-semibold text-lg transition-colors cursor-pointer"
             >
               {current + 1 < pool.length ? "Next Question →" : "Finish Session"}
             </button>
