@@ -6,6 +6,7 @@ export interface QuestionResult {
   subcategory: string;
   correct: boolean;
   timeTaken: number; // seconds
+  timedOut: boolean;
   timestamp: number;
 }
 
@@ -16,6 +17,7 @@ export interface SessionSummary {
   totalQuestions: number;
   correct: number;
   timeTaken: number;
+  isMock?: boolean;
 }
 
 const RESULTS_KEY = "exam_results";
@@ -62,6 +64,8 @@ export interface SubcategoryStats {
   total: number;
   correct: number;
   percentage: number;
+  avgTimeSecs: number;
+  timedOutCount: number;
 }
 
 export function getCategoryStats(results: QuestionResult[]): CategoryStats[] {
@@ -79,17 +83,22 @@ export function getCategoryStats(results: QuestionResult[]): CategoryStats[] {
 }
 
 export function getSubcategoryStats(results: QuestionResult[]): SubcategoryStats[] {
-  const map: Record<string, { total: number; correct: number }> = {};
+  const map: Record<string, { total: number; correct: number; totalTime: number; timedOut: number }> = {};
   for (const r of results) {
-    if (!map[r.subcategory]) map[r.subcategory] = { total: 0, correct: 0 };
+    if (!map[r.subcategory]) map[r.subcategory] = { total: 0, correct: 0, totalTime: 0, timedOut: 0 };
     map[r.subcategory].total++;
+    map[r.subcategory].totalTime += r.timeTaken;
     if (r.correct) map[r.subcategory].correct++;
+    if (r.timedOut) map[r.subcategory].timedOut++;
   }
   return Object.entries(map)
-    .map(([subcategory, stats]) => ({
+    .map(([subcategory, s]) => ({
       subcategory,
-      ...stats,
-      percentage: stats.total > 0 ? Math.round((stats.correct / stats.total) * 100) : 0,
+      total: s.total,
+      correct: s.correct,
+      percentage: s.total > 0 ? Math.round((s.correct / s.total) * 100) : 0,
+      avgTimeSecs: s.total > 0 ? Math.round(s.totalTime / s.total) : 0,
+      timedOutCount: s.timedOut,
     }))
     .sort((a, b) => a.percentage - b.percentage);
 }

@@ -1,17 +1,28 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { questions, CATEGORY_LABELS, type Category, type Question } from "@/app/data/questions";
 import { saveResult, saveSession } from "@/app/lib/progress";
 
 interface Props {
   category: Category | "mixed";
   targetSubcategory?: string;
+  timed?: boolean;       // per-question countdown
   onDone: () => void;
   onExit: () => void;
 }
 
 const QUESTIONS_PER_SESSION = 10;
+
+// seconds allowed per question per category (real exam pace)
+const TIME_LIMITS: Record<string, number> = {
+  numerical: 36,
+  verbal: 30,
+  mathematics: 30,
+  reading: 60, // longer due to passage reading
+  vocabulary: 25,
+  mixed: 35,
+};
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -22,7 +33,7 @@ function shuffle<T>(arr: T[]): T[] {
   return a;
 }
 
-export default function Quiz({ category, targetSubcategory, onDone, onExit }: Props) {
+export default function Quiz({ category, targetSubcategory, timed = false, onDone, onExit }: Props) {
   const [pool] = useState<Question[]>(() => {
     let filtered =
       category === "mixed"
@@ -30,15 +41,14 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
         : questions.filter((q) => q.category === category);
 
     if (targetSubcategory) {
-      filtered = filtered.filter((q) => q.subcategory === targetSubcategory);
-      // if fewer than 5 exact matches, add more from same category
-      if (filtered.length < 5) {
+      const exact = filtered.filter((q) => q.subcategory === targetSubcategory);
+      if (exact.length < 5) {
         const extra = questions.filter(
-          (q) =>
-            (category === "mixed" || q.category === category) &&
-            q.subcategory !== targetSubcategory
+          (q) => (category === "mixed" || q.category === category) && q.subcategory !== targetSubcategory
         );
-        filtered = [...filtered, ...shuffle(extra).slice(0, QUESTIONS_PER_SESSION - filtered.length)];
+        filtered = [...exact, ...shuffle(extra).slice(0, QUESTIONS_PER_SESSION - exact.length)];
+      } else {
+        filtered = exact;
       }
     }
 
@@ -48,18 +58,68 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
   const [current, setCurrent] = useState(0);
   const [selected, setSelected] = useState<number | null>(null);
   const [revealed, setRevealed] = useState(false);
-  const [results, setResults] = useState<{ correct: boolean; timeTaken: number }[]>([]);
+  const [timedOut, setTimedOut] = useState(false);
+  const [results, setResults] = useState<{ correct: boolean; timeTaken: number; timedOut: boolean }[]>([]);
   const [startTime, setStartTime] = useState(Date.now());
   const [sessionStart] = useState(Date.now());
   const [done, setDone] = useState(false);
 
   const q = pool[current];
+  const timeLimit = TIME_LIMITS[category] ?? 35;
+
+  // countdown timer
+  const [timeLeft, setTimeLeft] = useState(timeLimit);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  function clearTimer() {
+    if (timerRef.current) {
+      clearInterval(timerRef.current);
+      timerRef.current = null;
+    }
+  }
+
+  useEffect(() => {
+    if (!timed || revealed) return;
+    setTimeLeft(timeLimit);
+    timerRef.current = setInterval(() => {
+      setTimeLeft((t) => {
+        if (t <= 1) {
+          clearTimer();
+          handleTimeout();
+          return 0;
+        }
+        return t - 1;
+      });
+    }, 1000);
+    return clearTimer;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [current, timed]);
+
+  const handleTimeout = useCallback(() => {
+    if (revealed) return;
+    setTimedOut(true);
+    setRevealed(true);
+    const timeTaken = timeLimit;
+    saveResult({
+      questionId: q.id,
+      category: q.category,
+      subcategory: q.subcategory,
+      correct: false,
+      timeTaken,
+      timedOut: true,
+      timestamp: Date.now(),
+    });
+    setResults((prev) => [...prev, { correct: false, timeTaken, timedOut: true }]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [revealed, q, timeLimit]);
 
   const handleSelect = useCallback(
     (idx: number) => {
       if (revealed) return;
+      clearTimer();
       setSelected(idx);
       setRevealed(true);
+      setTimedOut(false);
       const timeTaken = Math.round((Date.now() - startTime) / 1000);
       const correct = idx === q.answer;
       saveResult({
@@ -68,9 +128,10 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
         subcategory: q.subcategory,
         correct,
         timeTaken,
+        timedOut: false,
         timestamp: Date.now(),
       });
-      setResults((prev) => [...prev, { correct, timeTaken }]);
+      setResults((prev) => [...prev, { correct, timeTaken, timedOut: false }]);
     },
     [revealed, q, startTime]
   );
@@ -91,13 +152,16 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
       setCurrent((c) => c + 1);
       setSelected(null);
       setRevealed(false);
+      setTimedOut(false);
       setStartTime(Date.now());
     }
   }
 
   if (done) {
     const correct = results.filter((r) => r.correct).length;
+    const timeouts = results.filter((r) => r.timedOut).length;
     const pct = Math.round((correct / pool.length) * 100);
+    const avgTime = Math.round(results.reduce((s, r) => s + r.timeTaken, 0) / results.length);
     const grade =
       pct >= 90 ? "Excellent!" : pct >= 70 ? "Good work!" : pct >= 50 ? "Keep practising!" : "More practice needed";
     const gradeColor =
@@ -109,21 +173,28 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
           <div className="text-6xl mb-4">{pct >= 70 ? "🎉" : "📚"}</div>
           <h2 className="text-2xl font-bold text-gray-800 mb-2">Session Complete!</h2>
           <div className={`text-5xl font-bold mb-1 ${gradeColor}`}>{pct}%</div>
-          <div className={`text-lg mb-4 ${gradeColor}`}>{grade}</div>
-          <div className="text-gray-500 mb-8">
-            {correct} / {pool.length} correct
+          <div className={`text-lg mb-6 ${gradeColor}`}>{grade}</div>
+
+          <div className="grid grid-cols-3 gap-3 mb-8 text-center">
+            <div className="bg-gray-50 rounded-xl p-3">
+              <div className="text-xl font-bold text-gray-800">{correct}/{pool.length}</div>
+              <div className="text-gray-500 text-xs">Correct</div>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-3">
+              <div className="text-xl font-bold text-gray-800">{avgTime}s</div>
+              <div className="text-gray-500 text-xs">Avg time</div>
+            </div>
+            <div className={`rounded-xl p-3 ${timeouts > 0 ? "bg-red-50" : "bg-green-50"}`}>
+              <div className={`text-xl font-bold ${timeouts > 0 ? "text-red-600" : "text-green-600"}`}>{timeouts}</div>
+              <div className="text-gray-500 text-xs">Timed out</div>
+            </div>
           </div>
+
           <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={onDone}
-              className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-semibold transition-colors cursor-pointer"
-            >
+            <button onClick={onDone} className="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl py-3 font-semibold transition-colors cursor-pointer">
               📊 See Progress
             </button>
-            <button
-              onClick={onExit}
-              className="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-3 font-semibold transition-colors cursor-pointer"
-            >
+            <button onClick={onExit} className="bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-xl py-3 font-semibold transition-colors cursor-pointer">
               🏠 Home
             </button>
           </div>
@@ -135,6 +206,10 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
   const catLabel = category === "mixed" ? "Mixed Practice" : CATEGORY_LABELS[category as Category];
   const sessionLabel = targetSubcategory ? `Targeted: ${targetSubcategory}` : catLabel;
   const progress = ((current + (revealed ? 1 : 0)) / pool.length) * 100;
+
+  const timerPct = timed ? (timeLeft / timeLimit) * 100 : 100;
+  const timerColor =
+    timerPct > 50 ? "bg-green-400" : timerPct > 25 ? "bg-yellow-400" : "bg-red-500";
 
   const optionStyle = (idx: number) => {
     if (!revealed) {
@@ -150,7 +225,7 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
   return (
     <div className="min-h-screen p-4" style={{ background: "linear-gradient(135deg, #667eea 0%, #764ba2 100%)" }}>
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-4">
+        <div className="flex items-center justify-between mb-3">
           <button onClick={onExit} className="text-white/70 hover:text-white text-sm transition-colors cursor-pointer">
             ← Exit
           </button>
@@ -158,14 +233,34 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
           <div className="text-white/70 text-sm">{current + 1} / {pool.length}</div>
         </div>
 
-        <div className="w-full bg-white/20 rounded-full h-2 mb-6">
-          <div
-            className="bg-white rounded-full h-2 transition-all duration-300"
-            style={{ width: `${progress}%` }}
-          />
+        {/* Question progress bar */}
+        <div className="w-full bg-white/20 rounded-full h-2 mb-2">
+          <div className="bg-white rounded-full h-2 transition-all duration-300" style={{ width: `${progress}%` }} />
         </div>
 
-        {/* Passage for reading comprehension */}
+        {/* Countdown timer bar */}
+        {timed && (
+          <div className="w-full bg-white/20 rounded-full h-2 mb-4">
+            <div
+              className={`${timerColor} rounded-full h-2 transition-all duration-1000`}
+              style={{ width: `${timerPct}%` }}
+            />
+          </div>
+        )}
+
+        {timed && !revealed && (
+          <div className={`text-center mb-3 text-lg font-bold ${timeLeft <= 10 ? "text-red-300 animate-pulse" : "text-white/80"}`}>
+            ⏱ {timeLeft}s
+          </div>
+        )}
+
+        {timedOut && (
+          <div className="bg-red-500 text-white text-center rounded-xl py-2 px-4 mb-4 font-semibold text-sm">
+            ⏰ Time's up! The correct answer was {String.fromCharCode(65 + q.answer)}.
+          </div>
+        )}
+
+        {/* Passage */}
         {q.passage && (
           <div className="bg-white/95 rounded-2xl p-6 mb-4 shadow-lg max-h-64 overflow-y-auto">
             <div className="text-xs font-semibold text-indigo-600 uppercase tracking-wide mb-3">Read the passage</div>
@@ -176,20 +271,19 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
         {/* Question card */}
         <div className="bg-white rounded-3xl p-6 shadow-2xl">
           <div className="flex items-center gap-2 mb-4">
-            <span className="text-xs bg-indigo-100 text-indigo-700 rounded-full px-3 py-1 font-medium">
-              {q.subcategory}
-            </span>
-            <span
-              className={`text-xs rounded-full px-3 py-1 font-medium ${
-                q.difficulty === "easy"
-                  ? "bg-green-100 text-green-700"
-                  : q.difficulty === "medium"
-                  ? "bg-yellow-100 text-yellow-700"
-                  : "bg-red-100 text-red-700"
-              }`}
-            >
+            <span className="text-xs bg-indigo-100 text-indigo-700 rounded-full px-3 py-1 font-medium">{q.subcategory}</span>
+            <span className={`text-xs rounded-full px-3 py-1 font-medium ${
+              q.difficulty === "easy" ? "bg-green-100 text-green-700"
+              : q.difficulty === "medium" ? "bg-yellow-100 text-yellow-700"
+              : "bg-red-100 text-red-700"
+            }`}>
               {q.difficulty}
             </span>
+            {timed && !revealed && (
+              <span className={`text-xs rounded-full px-3 py-1 font-medium ml-auto ${timeLeft <= 10 ? "bg-red-100 text-red-700" : "bg-gray-100 text-gray-600"}`}>
+                {timeLeft}s left
+              </span>
+            )}
           </div>
 
           <p className="text-gray-800 text-base font-medium mb-5 whitespace-pre-line leading-relaxed">
@@ -202,9 +296,7 @@ export default function Quiz({ category, targetSubcategory, onDone, onExit }: Pr
                 key={idx}
                 onClick={() => handleSelect(idx)}
                 disabled={revealed}
-                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${optionStyle(idx)} ${
-                  !revealed ? "cursor-pointer" : "cursor-default"
-                }`}
+                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${optionStyle(idx)} ${!revealed ? "cursor-pointer" : "cursor-default"}`}
               >
                 <span className="font-semibold text-gray-500 mr-3">{String.fromCharCode(65 + idx)}.</span>
                 <span className="text-gray-800">{opt}</span>

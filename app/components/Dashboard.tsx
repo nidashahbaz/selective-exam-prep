@@ -230,25 +230,30 @@ export default function Dashboard({ onBack, onTargetedPractice }: Props) {
           </div>
         )}
 
-        {/* All topics */}
+        {/* All topics with avg time */}
         {subStats.length > 0 && (
           <div className="bg-white rounded-3xl p-6 shadow-xl mb-6">
-            <h2 className="text-lg font-bold text-gray-800 mb-4">All Topics</h2>
-            <div className="space-y-2">
+            <h2 className="text-lg font-bold text-gray-800 mb-1">All Topics</h2>
+            <p className="text-gray-400 text-xs mb-4">Score · avg time per question · timed out</p>
+            <div className="space-y-3">
               {subStats.map((s) => {
                 const cat = subCategoryToCategory[s.subcategory] ?? "mixed";
+                const timeColor = s.avgTimeSecs <= 20 ? "text-green-600" : s.avgTimeSecs <= 35 ? "text-yellow-600" : "text-red-600";
                 return (
-                  <div key={s.subcategory} className="flex items-center justify-between text-sm">
+                  <div key={s.subcategory} className="flex items-center justify-between text-sm border-b border-gray-50 pb-2 last:border-0 last:pb-0">
                     <span className="text-gray-600 flex-1 min-w-0 truncate mr-2">{s.subcategory}</span>
                     <div className="flex items-center gap-2 flex-shrink-0">
-                      <span className="text-gray-400">{s.correct}/{s.total}</span>
-                      <span
-                        className={`font-semibold w-10 text-right ${
-                          s.percentage >= 80 ? "text-green-600" : s.percentage >= 60 ? "text-yellow-600" : "text-red-600"
-                        }`}
-                      >
+                      <span className={`font-semibold w-10 text-right ${
+                        s.percentage >= 80 ? "text-green-600" : s.percentage >= 60 ? "text-yellow-600" : "text-red-600"
+                      }`}>
                         {s.percentage}%
                       </span>
+                      <span className={`text-xs w-10 text-right ${timeColor}`} title="Average time per question">
+                        {s.avgTimeSecs}s
+                      </span>
+                      {s.timedOutCount > 0 && (
+                        <span className="text-xs text-red-500" title="Timed out">⏰{s.timedOutCount}</span>
+                      )}
                       <button
                         onClick={() => onTargetedPractice(cat, s.subcategory)}
                         className="text-xs text-indigo-500 hover:text-indigo-700 cursor-pointer ml-1"
@@ -259,6 +264,11 @@ export default function Dashboard({ onBack, onTargetedPractice }: Props) {
                   </div>
                 );
               })}
+            </div>
+            <div className="mt-3 pt-3 border-t border-gray-100 text-xs text-gray-400 flex gap-4">
+              <span className="text-green-600 font-medium">Green time = fast (≤20s)</span>
+              <span className="text-yellow-600 font-medium">Yellow = ok (≤35s)</span>
+              <span className="text-red-600 font-medium">Red = too slow</span>
             </div>
           </div>
         )}
