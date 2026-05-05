@@ -2,7 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from "react";
 import { questions, CATEGORY_LABELS, type Category, type Question } from "@/app/data/questions";
-import { saveResult, saveSession } from "@/app/lib/progress";
+import { saveResult, saveSession, getSeenIds, markSeen } from "@/app/lib/progress";
 
 interface Props {
   category: Category | "mixed";
@@ -52,7 +52,14 @@ export default function Quiz({ category, targetSubcategory, timed = false, onDon
       }
     }
 
-    return shuffle(filtered).slice(0, QUESTIONS_PER_SESSION);
+    // Prefer unseen questions; fall back to seen ones once the bank is exhausted
+    const seen = getSeenIds();
+    const unseen = filtered.filter((q) => !seen.has(q.id));
+    const pool = unseen.length >= QUESTIONS_PER_SESSION
+      ? unseen
+      : [...unseen, ...shuffle(filtered.filter((q) => seen.has(q.id)))];
+
+    return shuffle(pool).slice(0, QUESTIONS_PER_SESSION);
   });
 
   const [current, setCurrent] = useState(0);
@@ -147,6 +154,7 @@ export default function Quiz({ category, targetSubcategory, timed = false, onDon
         correct,
         timeTaken: Math.round((Date.now() - sessionStart) / 1000),
       });
+      markSeen(pool.map((q) => q.id));
       setDone(true);
     } else {
       setCurrent((c) => c + 1);

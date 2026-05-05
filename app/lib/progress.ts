@@ -50,6 +50,25 @@ export function getSessions(): SessionSummary[] {
 export function clearProgress(): void {
   localStorage.removeItem(RESULTS_KEY);
   localStorage.removeItem(SESSIONS_KEY);
+  localStorage.removeItem(SEEN_KEY);
+}
+
+const SEEN_KEY = "exam_seen_questions";
+
+export function getSeenIds(): Set<string> {
+  if (typeof window === "undefined") return new Set();
+  const raw = localStorage.getItem(SEEN_KEY);
+  return raw ? new Set(JSON.parse(raw)) : new Set();
+}
+
+export function markSeen(ids: string[]): void {
+  const seen = getSeenIds();
+  for (const id of ids) seen.add(id);
+  localStorage.setItem(SEEN_KEY, JSON.stringify([...seen]));
+}
+
+export function resetSeen(): void {
+  localStorage.removeItem(SEEN_KEY);
 }
 
 export interface CategoryStats {

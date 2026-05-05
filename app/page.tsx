@@ -2,12 +2,13 @@
 
 import { useState, useEffect } from "react";
 import { CATEGORY_LABELS, type Category } from "@/app/data/questions";
-import { getSessions, getResults, getCategoryStats } from "@/app/lib/progress";
+import { getSessions, getResults, getCategoryStats, getSubcategoryStats, type SubcategoryStats } from "@/app/lib/progress";
 import Quiz from "@/app/components/Quiz";
 import MockExam from "@/app/components/MockExam";
 import Dashboard from "@/app/components/Dashboard";
+import MathPractice from "@/app/components/MathPractice";
 
-type View = "home" | "quiz" | "mock" | "dashboard";
+type View = "home" | "quiz" | "mock" | "dashboard" | "math";
 
 export default function Home() {
   const [view, setView] = useState<View>("home");
@@ -18,6 +19,7 @@ export default function Home() {
   const [overallPct, setOverallPct] = useState<number | null>(null);
   const [sessionCount, setSessionCount] = useState(0);
   const [catStats, setCatStats] = useState<ReturnType<typeof getCategoryStats>>([]);
+  const [subStats, setSubStats] = useState<SubcategoryStats[]>([]);
 
   useEffect(() => {
     const results = getResults();
@@ -26,6 +28,7 @@ export default function Home() {
     setOverallPct(results.length > 0 ? Math.round((correct / results.length) * 100) : null);
     setSessionCount(getSessions().length);
     setCatStats(getCategoryStats(results));
+    setSubStats(getSubcategoryStats(results));
   }, [view]);
 
   function startQuiz(cat: Category | "mixed", subcategory?: string) {
@@ -48,6 +51,17 @@ export default function Home() {
 
   if (view === "mock") {
     return <MockExam onDone={() => setView("dashboard")} onExit={() => setView("home")} />;
+  }
+
+  if (view === "math") {
+    return (
+      <MathPractice
+        subStats={subStats}
+        onStartTopic={(subcategory) => startQuiz("mathematics", subcategory)}
+        onStartAll={() => startQuiz("mathematics")}
+        onBack={() => setView("home")}
+      />
+    );
   }
 
   if (view === "dashboard") {
@@ -129,6 +143,18 @@ export default function Home() {
             );
           })}
         </div>
+
+        {/* Math Practice */}
+        <button
+          onClick={() => setView("math")}
+          className="w-full bg-emerald-600 hover:bg-emerald-700 text-white rounded-2xl p-5 mb-4 font-semibold text-lg transition-all cursor-pointer shadow-lg flex items-center justify-center gap-3"
+        >
+          <span className="text-2xl">📐</span>
+          <div className="text-left">
+            <div>Math Practice by Topic</div>
+            <div className="text-emerald-100 text-sm font-normal">Revise each topic individually</div>
+          </div>
+        </button>
 
         {/* Mock exam */}
         <button
