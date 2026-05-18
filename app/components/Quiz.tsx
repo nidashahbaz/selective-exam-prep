@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef } from "react";
+import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
 import { questions, CATEGORY_LABELS, type Category, type Question } from "@/app/data/questions";
 import { saveResult, saveSession, getSeenIds, markSeen } from "@/app/lib/progress";
 
@@ -23,6 +23,20 @@ const TIME_LIMITS: Record<string, number> = {
   vocabulary: 25,
   mixed: 35,
 };
+
+// Converts base^(exp) and base^exp notation to superscript HTML spans
+function formatMath(text: string): ReactNode {
+  // Matches: base^(exp) or base^exp where exp is digits, letters, operators, spaces
+  const parts = text.split(/(\^(?:\([^)]+\)|[\w\d+\-*/]+))/g);
+  if (parts.length === 1) return text;
+  return parts.map((part, i) => {
+    if (part.startsWith("^")) {
+      const exp = part.slice(1).replace(/^\(|\)$/g, "");
+      return <sup key={i} className="text-[0.7em] leading-none">{exp}</sup>;
+    }
+    return part;
+  });
+}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -295,7 +309,7 @@ export default function Quiz({ category, targetSubcategory, timed = false, onDon
           </div>
 
           <p className="text-gray-800 text-base font-medium mb-5 whitespace-pre-line leading-relaxed">
-            {q.question}
+            {formatMath(q.question)}
           </p>
 
           <div className="space-y-3">
@@ -307,7 +321,7 @@ export default function Quiz({ category, targetSubcategory, timed = false, onDon
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all ${optionStyle(idx)} ${!revealed ? "cursor-pointer" : "cursor-default"}`}
               >
                 <span className="font-semibold text-gray-500 mr-3">{String.fromCharCode(65 + idx)}.</span>
-                <span className="text-gray-800">{opt}</span>
+                <span className="text-gray-800">{formatMath(opt)}</span>
                 {revealed && idx === q.answer && <span className="ml-2 text-green-600">✓</span>}
                 {revealed && idx === selected && idx !== q.answer && <span className="ml-2 text-red-600">✗</span>}
               </button>
@@ -317,7 +331,7 @@ export default function Quiz({ category, targetSubcategory, timed = false, onDon
           {revealed && (
             <div className="mt-5 p-4 bg-blue-50 rounded-xl border border-blue-200">
               <div className="font-semibold text-blue-800 mb-1 text-sm">Explanation</div>
-              <p className="text-blue-700 text-sm leading-relaxed">{q.explanation}</p>
+              <p className="text-blue-700 text-sm leading-relaxed">{formatMath(q.explanation)}</p>
             </div>
           )}
 
