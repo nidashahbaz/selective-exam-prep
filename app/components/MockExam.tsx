@@ -3,6 +3,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { questions, CATEGORY_LABELS, type Category, type Question } from "@/app/data/questions";
 import { saveResult, saveSession } from "@/app/lib/progress";
+import { formatMath } from "@/app/lib/formatMath";
+import { getDiagram } from "@/app/components/Diagrams";
 
 interface Props {
   onDone: () => void;
@@ -330,7 +332,9 @@ export default function MockExam({ onDone, onExit }: Props) {
             </span>
           </div>
 
-          <p className="text-gray-800 text-base font-medium mb-5 whitespace-pre-line leading-relaxed">{q.question}</p>
+          <p className="text-gray-800 text-base font-medium mb-3 whitespace-pre-line leading-relaxed">{formatMath(q.question)}</p>
+
+          {q.hasDiagram && getDiagram(q.id)}
 
           <div className="space-y-3">
             {q.options.map((opt, idx) => (
@@ -341,7 +345,7 @@ export default function MockExam({ onDone, onExit }: Props) {
                 className={`w-full text-left p-4 rounded-xl border-2 transition-all ${optionStyle(idx)} ${!revealed ? "cursor-pointer" : "cursor-default"}`}
               >
                 <span className="font-semibold text-gray-500 mr-3">{String.fromCharCode(65 + idx)}.</span>
-                <span className="text-gray-800">{opt}</span>
+                <span className="text-gray-800">{formatMath(opt)}</span>
                 {revealed && idx === q.answer && <span className="ml-2 text-green-600">✓</span>}
                 {revealed && idx === selected && idx !== q.answer && <span className="ml-2 text-red-600">✗</span>}
               </button>
@@ -351,7 +355,7 @@ export default function MockExam({ onDone, onExit }: Props) {
           {revealed && (
             <div className="mt-4 p-4 bg-blue-50 rounded-xl border border-blue-200">
               <div className="font-semibold text-blue-800 mb-1 text-sm">Explanation</div>
-              <p className="text-blue-700 text-sm leading-relaxed">{q.explanation}</p>
+              <p className="text-blue-700 text-sm leading-relaxed">{formatMath(q.explanation)}</p>
             </div>
           )}
 

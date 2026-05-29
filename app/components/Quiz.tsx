@@ -1,8 +1,10 @@
 "use client";
 
-import { useState, useCallback, useEffect, useRef, type ReactNode } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { questions, CATEGORY_LABELS, type Category, type Question } from "@/app/data/questions";
 import { saveResult, saveSession, getSeenIds, markSeen } from "@/app/lib/progress";
+import { formatMath } from "@/app/lib/formatMath";
+import { getDiagram } from "@/app/components/Diagrams";
 
 interface Props {
   category: Category | "mixed";
@@ -23,20 +25,6 @@ const TIME_LIMITS: Record<string, number> = {
   vocabulary: 25,
   mixed: 35,
 };
-
-// Converts base^(exp) and base^exp notation to superscript HTML spans
-function formatMath(text: string): ReactNode {
-  // Matches: base^(exp) or base^exp where exp is digits, letters, operators, spaces
-  const parts = text.split(/(\^(?:\([^)]+\)|[\w\d+\-*/]+))/g);
-  if (parts.length === 1) return text;
-  return parts.map((part, i) => {
-    if (part.startsWith("^")) {
-      const exp = part.slice(1).replace(/^\(|\)$/g, "");
-      return <sup key={i} className="text-[0.7em] leading-none">{exp}</sup>;
-    }
-    return part;
-  });
-}
 
 function shuffle<T>(arr: T[]): T[] {
   const a = [...arr];
@@ -308,9 +296,11 @@ export default function Quiz({ category, targetSubcategory, timed = false, onDon
             )}
           </div>
 
-          <p className="text-gray-800 text-base font-medium mb-5 whitespace-pre-line leading-relaxed">
+          <p className="text-gray-800 text-base font-medium mb-3 whitespace-pre-line leading-relaxed">
             {formatMath(q.question)}
           </p>
+
+          {q.hasDiagram && getDiagram(q.id)}
 
           <div className="space-y-3">
             {q.options.map((opt, idx) => (

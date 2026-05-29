@@ -7,8 +7,9 @@ import Quiz from "@/app/components/Quiz";
 import MockExam from "@/app/components/MockExam";
 import Dashboard from "@/app/components/Dashboard";
 import MathPractice from "@/app/components/MathPractice";
+import NumericalPractice from "@/app/components/NumericalPractice";
 
-type View = "home" | "quiz" | "mock" | "dashboard" | "math";
+type View = "home" | "quiz" | "mock" | "dashboard" | "math" | "numerical";
 
 export default function Home() {
   const [view, setView] = useState<View>("home");
@@ -59,6 +60,17 @@ export default function Home() {
         subStats={subStats}
         onStartTopic={(subcategory) => startQuiz("mathematics", subcategory)}
         onStartAll={() => startQuiz("mathematics")}
+        onBack={() => setView("home")}
+      />
+    );
+  }
+
+  if (view === "numerical") {
+    return (
+      <NumericalPractice
+        subStats={subStats}
+        onStartTopic={(subcategory) => startQuiz("numerical", subcategory)}
+        onStartAll={() => startQuiz("numerical")}
         onBack={() => setView("home")}
       />
     );
@@ -153,6 +165,18 @@ export default function Home() {
           <div className="text-left">
             <div>Math Practice by Topic</div>
             <div className="text-emerald-100 text-sm font-normal">Revise each topic individually</div>
+          </div>
+        </button>
+
+        {/* Numerical Practice */}
+        <button
+          onClick={() => setView("numerical")}
+          className="w-full bg-blue-600 hover:bg-blue-700 text-white rounded-2xl p-5 mb-4 font-semibold text-lg transition-all cursor-pointer shadow-lg flex items-center justify-center gap-3"
+        >
+          <span className="text-2xl">🔢</span>
+          <div className="text-left">
+            <div>Numerical Practice by Topic</div>
+            <div className="text-blue-100 text-sm font-normal">Sequences, word problems & more</div>
           </div>
         </button>
 
