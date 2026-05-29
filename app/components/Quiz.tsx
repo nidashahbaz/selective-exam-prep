@@ -302,21 +302,39 @@ export default function Quiz({ category, targetSubcategory, timed = false, onDon
 
           {q.hasDiagram && getDiagram(q.id)}
 
-          <div className="space-y-3">
-            {q.options.map((opt, idx) => (
-              <button
-                key={idx}
-                onClick={() => handleSelect(idx)}
-                disabled={revealed}
-                className={`w-full text-left p-4 rounded-xl border-2 transition-all ${optionStyle(idx)} ${!revealed ? "cursor-pointer" : "cursor-default"}`}
-              >
-                <span className="font-semibold text-gray-500 mr-3">{String.fromCharCode(65 + idx)}.</span>
-                <span className="text-gray-800">{formatMath(opt)}</span>
-                {revealed && idx === q.answer && <span className="ml-2 text-green-600">✓</span>}
-                {revealed && idx === selected && idx !== q.answer && <span className="ml-2 text-red-600">✗</span>}
-              </button>
-            ))}
-          </div>
+          {q.category === "vocabulary" ? (
+            <div className="grid grid-cols-2 gap-3">
+              {q.options.map((opt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSelect(idx)}
+                  disabled={revealed}
+                  className={`p-4 rounded-xl border-2 transition-all text-center min-h-[80px] flex flex-col items-center justify-center ${optionStyle(idx)} ${!revealed ? "cursor-pointer" : "cursor-default"}`}
+                >
+                  <span className="font-semibold text-gray-500 text-xs mb-1">{String.fromCharCode(65 + idx)}.</span>
+                  <span className="text-gray-800 text-sm leading-snug">{opt}</span>
+                  {revealed && idx === q.answer && <span className="mt-1 text-green-600 text-sm">✓</span>}
+                  {revealed && idx === selected && idx !== q.answer && <span className="mt-1 text-red-600 text-sm">✗</span>}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {q.options.map((opt, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleSelect(idx)}
+                  disabled={revealed}
+                  className={`w-full text-left p-4 rounded-xl border-2 transition-all ${optionStyle(idx)} ${!revealed ? "cursor-pointer" : "cursor-default"}`}
+                >
+                  <span className="font-semibold text-gray-500 mr-3">{String.fromCharCode(65 + idx)}.</span>
+                  <span className="text-gray-800">{formatMath(opt)}</span>
+                  {revealed && idx === q.answer && <span className="ml-2 text-green-600">✓</span>}
+                  {revealed && idx === selected && idx !== q.answer && <span className="ml-2 text-red-600">✗</span>}
+                </button>
+              ))}
+            </div>
+          )}
 
           {revealed && (
             <div className="mt-5 p-4 bg-blue-50 rounded-xl border border-blue-200">
